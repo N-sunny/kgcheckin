@@ -102,6 +102,7 @@ async function main() {
         printYellow("开始领取VIP...")
         let claimCount = 0
         let claimTotal = 0
+        let adBlocked = false
         for (let i = 1; i <= 8; i++) {
           // ad获取vip
           const ad = await send(`/youth/vip?timestrap=${Date.now()}`, "GET", headers)
@@ -114,6 +115,12 @@ async function main() {
             }
           } else if (ad.error_code === 30002) {
             printGreen("今天次数已用光")
+            break
+          } else if (ad.error_code === 20028) {
+            // 20028 = 账号存在安全风险被酷狗限制，属于账号侧状态，不是脚本故障。
+            // 不计入 errorMsg / hasError，避免整个工作流被判失败、每天误发异常通知。
+            printYellow(`第${i}次领取被风控限制(20028)，本次跳过广告领取`)
+            adBlocked = true
             break
           } else {
             printRed(`第${i}次领取失败`)
@@ -137,11 +144,11 @@ async function main() {
 
         notifyResults.push({
           nickname: safeNickname,
-          status: listenStatus === '失败' || claimCount === 0 ? '部分失败' : '成功',
+          status: listenStatus === '失败' ? '失败' : (claimCount === 0 && !adBlocked ? '部分失败' : '成功'),
           listen: listenStatus,
           vipClaim: `${claimCount}/${claimTotal}`,
           vipExpiry,
-          error: ''
+          error: adBlocked ? '广告领取被酷狗风控限制(20028)，听歌领取不受影响' : ''
         })
       } catch (err) {
         const safeUserId = maskIdentifier(user.userid || '未知')
